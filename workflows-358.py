@@ -33,12 +33,12 @@ def generate_datasets() -> list[Dataset]:
 
     Source: https://sagebionetworks.jira.com/browse/WORKFLOWS-528?focusedCommentId=171979
     """
-    s3_prefix = "s3://ntap-add5-project-tower-bucket/samplesheets/IBCDPE-528/synstage/"
+    prefix = "s3://ntap-add5-project-tower-bucket/samplesheets/IBCDPE-528/synstage"
     return [
-        Dataset("syn51198953", f"{s3_prefix}/syn51198953_RNA_Seq_SampleSheet.csv"),
-        Dataset("syn51198956", f"{s3_prefix}/syn51198956_RNA_Seq_SampleSheet.csv"),
-        Dataset("syn51199003", f"{s3_prefix}/syn51199003_RNA_Seq_SampleSheet.csv"),
-        Dataset("syn51199006", f"{s3_prefix}/syn51199006_RNA_Seq_SampleSheet.csv"),
+        Dataset("syn51198953", f"{prefix}/syn51198953_RNA_Seq_SampleSheet.fixed.csv"),
+        Dataset("syn51198956", f"{prefix}/syn51198956_RNA_Seq_SampleSheet.csv"),
+        Dataset("syn51199003", f"{prefix}/syn51199003_RNA_Seq_SampleSheet.csv"),
+        Dataset("syn51199006", f"{prefix}/syn51199006_RNA_Seq_SampleSheet.csv"),
     ]
 
 
