@@ -40,10 +40,10 @@ def generate_datasets() -> list[Dataset]:
     """
     prefix = "s3://ntap-add5-project-tower-bucket/samplesheets/IBCDPE-528/synstage"
     return [
-        Dataset("syn51198953", f"{prefix}/syn51198953_RNA_Seq_SampleSheet.fixed.csv", ""),
-        Dataset("syn51198956", f"{prefix}/syn51198956_RNA_Seq_SampleSheet.csv", ""),
-        Dataset("syn51199003", f"{prefix}/syn51199003_RNA_Seq_SampleSheet.csv", ""),
-        Dataset("syn51199006", f"{prefix}/syn51199006_RNA_Seq_SampleSheet.csv", ""),
+        Dataset("syn51198953", f"{prefix}/syn51198953_RNA_Seq_SampleSheet.fixed.csv", "syn51476538"),
+        Dataset("syn51198956", f"{prefix}/syn51198956_RNA_Seq_SampleSheet.csv", "syn51476543"),
+        Dataset("syn51199003", f"{prefix}/syn51199003_RNA_Seq_SampleSheet.csv", "syn51476548"),
+        Dataset("syn51199006", f"{prefix}/syn51199006_RNA_Seq_SampleSheet.csv", "syn51476553"),
     ]
 
 
@@ -81,6 +81,7 @@ def prepare_synindex_launch_info(dataset: Dataset) -> LaunchInfo:
             "s3_prefix": f"s3://ntap-add5-project-tower-bucket/outputs/{dataset.rnaseq_run_name}/",
             "parent_id": dataset.parent_id,
         },
+        workspace_secrets=["SYNAPSE_AUTH_TOKEN"],
     )
 
 
