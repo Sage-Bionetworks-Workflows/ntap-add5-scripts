@@ -37,14 +37,41 @@ def generate_datasets():
     return [Dataset(**kwargs) for kwargs in datasets_raw]
 
 
-def prepare_sarek_launch_info(dataset: Dataset) -> LaunchInfo:
-    """Generate LaunchInfo for nf-core/sarek workflow run."""
-    run_name = dataset.get_run_name("sarek")
+def prepare_sarek_v2_launch_info(dataset: Dataset) -> LaunchInfo:
+    """Generate LaunchInfo for nf-core/sarek v2 workflow run."""
+    run_name = dataset.get_run_name("sarek_v2")
 
-    if dataset.starting_step == "variant_calling":
-        tools = "cnvkit"
-    else:
-        tools = "cnvkit,deepvariant,freebayes,mutect2,strelka"
+    params = {
+        "input": dataset.samplesheet,
+        "outdir": f"s3://ntap-add5-project-tower-bucket/outputs/{run_name}/",
+        "step": dataset.starting_step,
+        "tools": "DeepVariant,FreeBayes,Mutect2,Strelka",
+        "model_type": "WGS",
+        "genome": "GRCh38",
+        "igenomes_base": "s3://sage-igenomes/igenomes",
+    }
+
+    nextflow_config = """
+    process {
+        withLabel:deepvariant {
+            cpus = 24
+        }
+    }
+    """
+
+    return LaunchInfo(
+        run_name=run_name,
+        pipeline="Sage-Bionetworks-Workflows/sarek",
+        revision="d48de18fc5342c02c64c0e0b0e704012b28c91dd",
+        profiles=["sage"],
+        params=params,
+        nextflow_config=dedent(nextflow_config),
+    )
+
+
+def prepare_sarek_v3_launch_info(dataset: Dataset) -> LaunchInfo:
+    """Generate LaunchInfo for nf-core/sarek v3 workflow run."""
+    run_name = dataset.get_run_name("sarek_v3")
 
     params = {
         "input": dataset.samplesheet,
@@ -52,27 +79,16 @@ def prepare_sarek_launch_info(dataset: Dataset) -> LaunchInfo:
         "wes": False,
         "igenomes_base": "s3://sage-igenomes/igenomes",
         "genome": "GATK.GRCh38",
-        "tools": tools,
+        "tools": "cnvkit",
         "outdir": f"s3://ntap-add5-project-tower-bucket/outputs/{run_name}/",
     }
 
-    nextflow_config = """
-    model_type = params.wes ? "WES" : "WGS"
-
-    process {
-        withName: DEEPVARIANT {
-            ext.args = "--model_type ${{model_type}}"
-        }
-    }
-    """
-
     return LaunchInfo(
         run_name=run_name,
-        pipeline="nf-core/sarek",
-        revision="3.1.2",
+        pipeline="Sage-Bionetworks-Workflows/sarek",
+        revision="3.1.2-safe",
         profiles=["sage"],
         params=params,
-        nextflow_config=dedent(nextflow_config),
     )
 
 
@@ -95,9 +111,20 @@ def prepare_synindex_launch_info(dataset: Dataset) -> LaunchInfo:
 
 
 async def run_workflows(ops: NextflowTowerOps, dataset: Dataset):
-    sarek_info = prepare_sarek_launch_info(dataset)
+    if dataset.starting_step == "mapping":
+        sarek_info = prepare_sarek_v2_launch_info(dataset)
+    elif dataset.starting_step == "variant_calling":
+        sarek_info = prepare_sarek_v3_launch_info(dataset)
+    else:
+        raise ValueError("Unexpected starting step")
     sarek_run_id = ops.launch_workflow(sarek_info, "spot")
     await monitor_run(ops, sarek_run_id)
+
+    # TODO: Generate Sarek v3 sample sheet from v2 run
+    # if dataset.starting_step == "mapping":
+    #     sarek_v3_info = prepare_sarek_v3_launch_info(dataset)
+    #     sarek_run_id = ops.launch_workflow(sarek_info, "spot")
+    #     await monitor_run(ops, sarek_run_id)
 
     # synindex_info = prepare_synindex_launch_info(dataset)
     # synindex_run_id = ops.launch_workflow(synindex_info, "spot")
