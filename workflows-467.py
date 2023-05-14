@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 
 import asyncio
-from dataclasses import dataclass
+import csv
+from dataclasses import dataclass, replace
 from textwrap import dedent
 
+import s3fs
 from orca.services.nextflowtower import NextflowTowerOps
 from orca.services.nextflowtower.models import LaunchInfo
 from yaml import safe_load
 
 from utils import configure_logging, monitor_run
+
+SAMPLESHEETS_DIR = "s3://ntap-add5-project-tower-bucket/samplesheets/IBCDPE-528"
 
 
 async def main():
@@ -92,22 +96,39 @@ def prepare_sarek_v3_launch_info(dataset: Dataset) -> LaunchInfo:
     )
 
 
-def prepare_synindex_launch_info(dataset: Dataset) -> LaunchInfo:
+def prepare_synindex_launch_info(dataset: Dataset, launch_info: LaunchInfo) -> LaunchInfo:
     """Generate LaunchInfo for nf-synindex workflow run."""
-    synindex_run_name = dataset.get_run_name("synindex")
-    sarek_run_name = dataset.get_run_name("sarek")
 
     return LaunchInfo(
-        run_name=synindex_run_name,
+        run_name=dataset.get_run_name("synindex"),
         pipeline="Sage-Bionetworks-Workflows/nf-synindex",
         revision="main",
         profiles=["sage"],
         params={
-            "s3_prefix": f"s3://ntap-add5-project-tower-bucket/outputs/{sarek_run_name}/",
+            "s3_prefix": launch_info.params["outdir"],
             "parent_id": dataset.parent_id,
         },
         workspace_secrets=["SYNAPSE_AUTH_TOKEN"],
     )
+
+
+def convert_sarek_v2_to_v3_samplesheet(v2_launch_info: LaunchInfo):
+    s3 = s3fs.S3FileSystem()
+    outdir = v2_launch_info.params["outdir"].rstrip("/")
+    recalibrated_uri = f"{outdir}/Preprocessing/TSV/recalibrated.tsv"
+
+    with s3.open(recalibrated_uri, "r", newline="") as tsvfile:
+        reader = csv.reader(tsvfile, delimiter="\t")
+        recalibrated_rows = list(reader)
+
+    v3_samplesheet_uri = recalibrated_uri.replace("recalibrated.tsv", "sarek_v3.csv")
+    with s3.open(v3_samplesheet_uri, "w", newline="") as csvfile:
+        header = ["patient", "sex", "status", "sample", "bam", "bai"]
+        writer = csv.writer(csvfile, delimiter=",")
+        writer.writerow(header)
+        writer.writerows(recalibrated_rows)
+
+    return v3_samplesheet_uri
 
 
 async def run_workflows(ops: NextflowTowerOps, dataset: Dataset):
@@ -120,15 +141,17 @@ async def run_workflows(ops: NextflowTowerOps, dataset: Dataset):
     sarek_run_id = ops.launch_workflow(sarek_info, "spot")
     await monitor_run(ops, sarek_run_id)
 
-    # TODO: Generate Sarek v3 sample sheet from v2 run
-    # if dataset.starting_step == "mapping":
-    #     sarek_v3_info = prepare_sarek_v3_launch_info(dataset)
-    #     sarek_run_id = ops.launch_workflow(sarek_info, "spot")
-    #     await monitor_run(ops, sarek_run_id)
+    if dataset.starting_step == "mapping":
+        sarek_v2_info, dataset_v2 = sarek_info, dataset
+        sarek_v3_samplesheet = convert_sarek_v2_to_v3_samplesheet(sarek_v2_info)
+        dataset = replace(dataset_v2, samplesheet=sarek_v3_samplesheet, starting_step="variant_calling")
+        sarek_info = prepare_sarek_v3_launch_info(dataset)
+        sarek_run_id = ops.launch_workflow(sarek_info, "spot")
+        await monitor_run(ops, sarek_run_id)
 
-    # synindex_info = prepare_synindex_launch_info(dataset)
-    # synindex_run_id = ops.launch_workflow(synindex_info, "spot")
-    # await monitor_run(ops, synindex_run_id)
+    synindex_info = prepare_synindex_launch_info(dataset, sarek_info)
+    synindex_run_id = ops.launch_workflow(synindex_info, "spot")
+    await monitor_run(ops, synindex_run_id)
 
 
 if __name__ == "__main__":
