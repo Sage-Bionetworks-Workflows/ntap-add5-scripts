@@ -5,6 +5,8 @@ name = "pypi"
 
 [packages]
 py-orca = {version = "~=1.2", extras = ["all"]}
+pyyaml = "*"
+s3fs = "*"
 
 [dev-packages]
 black = "*"
