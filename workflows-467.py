@@ -29,6 +29,7 @@ class Dataset:
     starting_step: str
     samplesheet: str
     parent_id: str
+    mapping_parent_id: str | None = None
 
     def get_run_name(self, prefix: str):
         return f"{prefix}_{self.id}"
@@ -140,6 +141,13 @@ async def run_workflows(ops: NextflowTowerOps, dataset: Dataset):
         raise ValueError("Unexpected starting step")
     sarek_run_id = ops.launch_workflow(sarek_info, "spot")
     await monitor_run(ops, sarek_run_id)
+
+    # Index Sarek v2 results in a separate Synapse folder
+    if dataset.starting_step == "mapping":
+        mapping_dataset = replace(dataset, id=f"sarek_v2_{dataset.id}", parent_id=dataset.mapping_parent_id)
+        mapping_synindex_info = prepare_synindex_launch_info(mapping_dataset, sarek_info)
+        mapping_synindex_run_id = ops.launch_workflow(mapping_synindex_info, "spot")
+        await monitor_run(ops, mapping_synindex_run_id)
 
     if dataset.starting_step == "mapping":
         sarek_v2_info, dataset_v2 = sarek_info, dataset

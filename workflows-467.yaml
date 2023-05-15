@@ -2,6 +2,7 @@
   starting_step: mapping
   samplesheet: s3://ntap-add5-project-tower-bucket/samplesheets/IBCDPE-528/synstage/sarek-v2.mapping.syn29429576.fastqs.tsv
   parent_id: syn29429576
+  mapping_parent_id: syn51496652
 
 - id: syn29783617_variant_calling
   starting_step: variant_calling
